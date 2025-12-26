@@ -1,28 +1,28 @@
-# 1. Используем образ с поддержкой OpenSSL
-FROM node:20-slim AS base
+FROM node:20-slim
+
+# 1. Устанавливаем системные зависимости для базы данных
 RUN apt-get update -y && apt-get install -y openssl libssl-dev ca-certificates
 
-# Настройка pnpm
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+# 2. Настраиваем pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# 2. Установка зависимостей
+# 3. Копируем ВООБЩЕ ВСЁ (чтобы не гадать с путями монорепозитория)
 COPY . .
-RUN pnpm install --no-frozen-lockfile
 
-# 3. Сборка
+# 4. Устанавливаем всё и собираем
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm run build
 
-# 4. Финальный запуск
+# 5. Настройка окружения
 ENV NODE_ENV production
 EXPOSE 3000
 
-# Исправленная команда запуска:
-# Мы сначала генерируем клиент Prisma, потом пушим базу, потом стартуем.
-# Если путь packages/database/prisma/schema.prisma не сработает, попробуем найти его через find.
-CMD npx prisma generate --schema=packages/database/prisma/schema.prisma && \
-    npx prisma db push --schema=packages/database/prisma/schema.prisma --accept-data-loss && \
+# 6. Умная команда запуска:
+# Она сама найдет файл schema.prisma, где бы он ни лежал, и запустит его.
+CMD SCHEMA_PATH=$(find . -name schema.prisma | head -n 1) && \
+    echo "Found schema at: $SCHEMA_PATH" && \
+    npx prisma generate --schema=$SCHEMA_PATH && \
+    npx prisma db push --schema=$SCHEMA_PATH --accept-data-loss && \
     pnpm run start
