@@ -1,25 +1,22 @@
-# 1. Используем легкий образ Node.js
-FROM node:20-slim AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:22-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+FROM base AS build
 WORKDIR /app
-
-# 2. Установка зависимостей
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# Копируем только те папки, которые реально нужны для установки (монорепозиторий)
-COPY apps/mail/package.json ./apps/mail/
-COPY packages/database/package.json ./packages/database/
-
-# Устанавливаем зависимости (без поиска папок .yarn)
-RUN pnpm install --frozen-lockfile
-
-# 3. Сборка проекта
 COPY . .
+# Устанавливаем зависимости. Флаг --no-frozen-lockfile поможет, если есть конфликты версий
+RUN pnpm install --no-frozen-lockfile
+# Собираем монорепозиторий
 RUN pnpm run build
 
-# 4. Финальный образ
+FROM base AS runner
+WORKDIR /app
 ENV NODE_ENV production
-EXPOSE 3000
+# Копируем всё собранное
+COPY --from=build /app /app
 
-# Команда запуска: пушим базу и стартуем сервер
-# Мы используем npx prisma, чтобы не зависеть от путей монорепозитория
-CMD npx prisma db push --schema=packages/database/prisma/schema.prisma && pnpm run start
+EXPOSE 3000
+# Команда запуска: пушим базу и стартуем
+CMD ["sh", "-c", "npx prisma db push --schema=packages/database/prisma/schema.prisma && pnpm run start"]
