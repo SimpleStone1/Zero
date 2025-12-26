@@ -24,5 +24,4 @@ EXPOSE 3000
 # 7. Команда запуска
 # Мы используем фильтр pnpm, чтобы запустить пуш базы именно из папки сервера,
 # а затем запускаем основной проект.
-CMD pnpm --filter @zero/server db:push && \
-    pnpm turbo run start --filter=@zero/server --filter=@zero/mail
+CMD pnpm --filter @zero/server db:push && pnpm run start
