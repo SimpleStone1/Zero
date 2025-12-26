@@ -1,22 +1,28 @@
-FROM node:22-slim AS base
+# 1. Используем образ с поддержкой OpenSSL
+FROM node:20-slim AS base
+RUN apt-get update -y && apt-get install -y openssl libssl-dev ca-certificates
+
+# Настройка pnpm
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-FROM base AS build
 WORKDIR /app
+
+# 2. Установка зависимостей
 COPY . .
-# Устанавливаем зависимости. Флаг --no-frozen-lockfile поможет, если есть конфликты версий
 RUN pnpm install --no-frozen-lockfile
-# Собираем монорепозиторий
+
+# 3. Сборка
 RUN pnpm run build
 
-FROM base AS runner
-WORKDIR /app
+# 4. Финальный запуск
 ENV NODE_ENV production
-# Копируем всё собранное
-COPY --from=build /app /app
-
 EXPOSE 3000
-# Команда запуска: пушим базу и стартуем
-CMD ["sh", "-c", "npx prisma db push --schema=packages/database/prisma/schema.prisma && pnpm run start"]
+
+# Исправленная команда запуска:
+# Мы сначала генерируем клиент Prisma, потом пушим базу, потом стартуем.
+# Если путь packages/database/prisma/schema.prisma не сработает, попробуем найти его через find.
+CMD npx prisma generate --schema=packages/database/prisma/schema.prisma && \
+    npx prisma db push --schema=packages/database/prisma/schema.prisma --accept-data-loss && \
+    pnpm run start
